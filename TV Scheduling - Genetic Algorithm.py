@@ -17,73 +17,90 @@ GEN = st.sidebar.number_input("Generations (GEN)", min_value=50, max_value=1000,
 POP = st.sidebar.number_input("Population Size (POP)", min_value=10, max_value=500, value=100, step=10)
 EL_S = st.sidebar.number_input("Elitism Size (EL_S)", min_value=1, max_value=10, value=3, step=1)
 
+# Keep previous upload for comparison
+if "previous_df" not in st.session_state:
+    st.session_state.previous_df = None
+
 
 # ==========================================================
 # 🧩 MAIN CODE EXECUTION
 # ==========================================================
 if uploaded_file is not None:
-    # ------------------------ Load CSV ------------------------
-   def read_csv_to_dict(uploaded_file):
-    try:
-        df = pd.read_csv(uploaded_file)
-    except Exception as e:
-        st.error(f"⚠️ Error reading CSV file: {e}")
-        return {}
+    def read_csv_to_dict(uploaded_file):
+        try:
+            df = pd.read_csv(uploaded_file)
+        except Exception as e:
+            st.error(f"⚠️ Error reading CSV file: {e}")
+            return {}
 
-    if df.empty:
-        st.error("⚠️ The uploaded CSV file is empty.")
-        return {}
+        if df.empty:
+            st.error("⚠️ The uploaded CSV file is empty.")
+            return {}
 
-    if df.shape[1] < 2:
-        st.error("⚠️ The CSV must have at least one program column and one rating column.")
-        return {}
+        if df.shape[1] < 2:
+            st.error("⚠️ The CSV must have at least one program column and one rating column.")
+            return {}
 
-    # Detect modified (bolded) cells: assuming modified cells were wrapped in ** **
-    # Example: if CSV cell was **8.5**, we'll render it as bold in Streamlit
-    df_styled = df.copy()
-    bold_mask = df_styled.applymap(lambda x: isinstance(x, str) and x.strip().startswith("**") and x.strip().endswith("**"))
+        # ============================
+        # Highlight changed values
+        # ============================
+        styled_df = df.copy()
 
-    def highlight_bold(val):
-        if isinstance(val, str) and val.strip().startswith("**") and val.strip().endswith("**"):
-            clean_val = val.strip("*")  # remove **
-            return f"<b>{clean_val}</b>"
-        elif pd.api.types.is_number(val):
-            return f"{val}"
+        if st.session_state.previous_df is not None:
+            prev = st.session_state.previous_df
+            # Compare with previous CSV if same shape
+            if prev.shape == df.shape:
+                changed_mask = df.ne(prev)
+            else:
+                changed_mask = pd.DataFrame(False, index=df.index, columns=df.columns)
         else:
-            return val
+            changed_mask = pd.DataFrame(False, index=df.index, columns=df.columns)
 
-    styled_df = df_styled.applymap(highlight_bold)
+        def highlight_changes(val, changed):
+            if changed:
+                return f"<b style='color:red;'>{val}</b>"
+            return f"{val}"
 
-    # Display full CSV (not just first 5 rows)
-    st.write("### 📄 CSV Preview (Full Data, Bold = Modified Cells):")
-    st.write(styled_df.to_html(escape=False, index=False), unsafe_allow_html=True)
+        # Apply highlighting to every cell
+        html_table = "<table border='1' style='border-collapse:collapse;'>"
+        html_table += "<tr>" + "".join([f"<th>{col}</th>" for col in df.columns]) + "</tr>"
+        for i in range(len(df)):
+            html_table += "<tr>"
+            for j, col in enumerate(df.columns):
+                val = df.iloc[i, j]
+                changed = changed_mask.iloc[i, j]
+                html_table += f"<td style='padding:4px;text-align:center;'>{highlight_changes(val, changed)}</td>"
+            html_table += "</tr>"
+        html_table += "</table>"
 
-    # Convert to numeric for processing
-    program_ratings = {}
-    for _, row in df.iterrows():
-        program = str(row.iloc[0])
-        ratings = []
-        for x in row.iloc[1:].tolist():
-            # Clean bold markers if present
-            if isinstance(x, str):
-                x = x.strip("*")
-            try:
-                ratings.append(float(x))
-            except ValueError:
-                st.error(f"⚠️ Invalid numeric value found in program '{program}'.")
-                return {}
-        program_ratings[program] = ratings
+        # Display full CSV with highlights
+        st.write("### 📄 CSV Preview (Full Data — Red = Modified Values)")
+        st.markdown(html_table, unsafe_allow_html=True)
 
-    return program_ratings
+        # Save this CSV as the new "previous" one for next upload
+        st.session_state.previous_df = df.copy()
 
+        # Convert to numeric for GA
+        program_ratings = {}
+        for _, row in df.iterrows():
+            program = str(row.iloc[0])
+            ratings = []
+            for x in row.iloc[1:].tolist():
+                try:
+                    ratings.append(float(x))
+                except ValueError:
+                    st.error(f"⚠️ Invalid numeric value found in program '{program}'.")
+                    return {}
+            program_ratings[program] = ratings
+
+        return program_ratings
 
     ratings = read_csv_to_dict(uploaded_file)
 
-    if ratings:  # Only proceed if CSV is valid
+    if ratings:
         all_programs = list(ratings.keys())
         all_time_slots = list(range(6, 24))  # 6 AM to 11 PM
 
-        # Determine global min/max possible fitness for normalization
         global_min = min([min(v) for v in ratings.values()])
         global_max = max([max(v) for v in ratings.values()])
 
@@ -146,21 +163,18 @@ if uploaded_file is not None:
 
                 population = new_population[:population_size]
 
-            # Normalize based on global range (not per generation)
             normalized_best = (best_fitness_value - global_min * len(all_time_slots)) / (
                 (global_max - global_min) * len(all_time_slots)
             )
-            normalized_best = max(0, min(1, normalized_best))  # keep between 0–1
+            normalized_best = max(0, min(1, normalized_best))
 
             return best_overall, normalized_best
 
-        # ------------------------ Run Algorithm ------------------------
         if st.button("▶️ Run Genetic Algorithm"):
             st.write("### Running Genetic Algorithm... Please wait...")
             initial_schedule = all_programs.copy()
             best_schedule, total_rating = genetic_algorithm(initial_schedule)
 
-            # ------------------------ Display Results ------------------------
             st.success("✅ Optimal Schedule Found!")
             st.write("### 🗓️ Final Optimal Schedule")
 
