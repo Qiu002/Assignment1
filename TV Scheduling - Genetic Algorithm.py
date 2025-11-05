@@ -113,11 +113,20 @@ if uploaded_file is not None:
         total_rating = fitness_function(best_schedule)
 
         st.success("✅ Optimal Schedule Found!")
-        st.write("### Final Schedule:")
-        for time_slot, program in enumerate(best_schedule):
-            st.write(f"Time Slot {all_time_slots[time_slot % len(all_time_slots)]:02d}:00 — **{program}**")
+st.write("### 🗓️ Final Optimal Schedule")
 
-        st.write(f"**Total Ratings:** {total_rating:.2f}")
+# Create a table for schedule display
+schedule_data = {
+    "Time Slot": [f"{all_time_slots[i % len(all_time_slots)]:02d}:00" for i in range(len(best_schedule))],
+    "Program": best_schedule
+}
+schedule_df = pd.DataFrame(schedule_data)
+
+# Display table in Streamlit
+st.table(schedule_df)
+
+# Show total rating below
+st.write(f"### ⭐ Total Ratings: {total_rating:.2f}")
 
 else:
     st.info("Please upload a CSV file to begin.")
