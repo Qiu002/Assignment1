@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import csv
 import random
 
@@ -19,15 +20,37 @@ EL_S = st.sidebar.number_input("Elitism Size (EL_S)", min_value=1, max_value=10,
 
 if uploaded_file is not None:
     # ------------------------ Load CSV ------------------------
-    def read_csv_to_dict(file):
-        program_ratings = {}
-        reader = csv.reader(file)
-        header = next(reader)
-        for row in reader:
-            program = row[0]
-            ratings = [float(x) for x in row[1:]]
-            program_ratings[program] = ratings
-        return program_ratings
+   def read_csv_to_dict(uploaded_file):
+    try:
+        df = pd.read_csv(uploaded_file)
+    except Exception as e:
+        st.error(f"⚠️ Error reading CSV file: {e}")
+        return {}
+
+    if df.empty:
+        st.error("⚠️ The uploaded CSV file is empty.")
+        return {}
+
+    if df.shape[1] < 2:
+        st.error("⚠️ The CSV must have at least one program column and one rating column.")
+        return {}
+
+    # Convert dataframe to dictionary format {program_name: [ratings]}
+    program_ratings = {}
+    for _, row in df.iterrows():
+        program = str(row.iloc[0])
+        try:
+            ratings = [float(x) for x in row.iloc[1:].tolist()]
+        except ValueError:
+            st.error(f"⚠️ Invalid numeric value found in program '{program}'.")
+            return {}
+        program_ratings[program] = ratings
+
+    # Optional: show preview
+    st.write("### 📄 CSV Preview (first 5 rows):")
+    st.dataframe(df.head())
+
+    return program_ratings
 
     ratings = read_csv_to_dict(uploaded_file)
 
