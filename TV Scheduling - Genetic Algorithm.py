@@ -61,19 +61,13 @@ if uploaded_file is not None:
         all_time_slots = list(range(6, 24))  # 6 AM to 11 PM
 
         # ------------------------ Fitness Function ------------------------
-        # Normalize fitness between 0 and 1 (fixed scaling)
-        max_possible_rating = max([max(v) for v in ratings.values()])
-        min_possible_rating = min([min(v) for v in ratings.values()])
-
         def fitness_function(schedule):
             total_rating = 0
             for time_slot, program in enumerate(schedule):
-                total_rating += ratings[program][time_slot % len(ratings[program])]
-            # Normalize properly across total possible range
-            normalized = (total_rating - (min_possible_rating * len(schedule))) / (
-                (max_possible_rating - min_possible_rating) * len(schedule)
-            )
-            return normalized
+                # Create stronger variety by weighting time slots differently
+                weight = (time_slot + 1) / len(schedule)
+                total_rating += ratings[program][time_slot % len(ratings[program])] * weight
+            return total_rating
 
         # ------------------------ GA Operators ------------------------
         def crossover(schedule1, schedule2):
@@ -90,12 +84,22 @@ if uploaded_file is not None:
 
         def genetic_algorithm(initial_schedule, generations=GEN, population_size=POP,
                               crossover_rate=CO_R, mutation_rate=MUT_R, elitism_size=EL_S):
-            population = [initial_schedule.copy() for _ in range(population_size)]
-            for i in range(population_size):
-                random.shuffle(population[i])
+            population = []
+            for _ in range(population_size):
+                individual = [random.choice(all_programs) for _ in range(len(all_time_slots))]
+                population.append(individual)
 
             for generation in range(generations):
-                population.sort(key=lambda s: fitness_function(s), reverse=True)
+                # Compute fitness for normalization
+                fitness_scores = [fitness_function(ind) for ind in population]
+                min_fit, max_fit = min(fitness_scores), max(fitness_scores)
+                norm_fitness = [(f - min_fit) / (max_fit - min_fit + 1e-9) for f in fitness_scores]
+
+                # Sort by fitness
+                sorted_indices = sorted(range(len(population)), key=lambda i: norm_fitness[i], reverse=True)
+                population = [population[i] for i in sorted_indices]
+                norm_fitness = [norm_fitness[i] for i in sorted_indices]
+
                 new_population = population[:elitism_size]
 
                 while len(new_population) < population_size:
@@ -114,15 +118,17 @@ if uploaded_file is not None:
 
                 population = new_population[:population_size]
 
-            population.sort(key=lambda s: fitness_function(s), reverse=True)
-            return population[0]
+            # Return best schedule
+            best_schedule = population[0]
+            best_fitness = fitness_function(best_schedule)
+            normalized_best = (best_fitness - min_fit) / (max_fit - min_fit + 1e-9)
+            return best_schedule, normalized_best
 
         # ------------------------ Run Algorithm ------------------------
         if st.button("▶️ Run Genetic Algorithm"):
             st.write("### Running Genetic Algorithm... Please wait...")
             initial_schedule = all_programs.copy()
-            best_schedule = genetic_algorithm(initial_schedule)
-            total_rating = fitness_function(best_schedule)  # Normalized 0–1 scale
+            best_schedule, total_rating = genetic_algorithm(initial_schedule)
 
             # ------------------------ Display Results ------------------------
             st.success("✅ Optimal Schedule Found!")
