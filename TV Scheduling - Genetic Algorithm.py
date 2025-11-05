@@ -60,11 +60,14 @@ if uploaded_file is not None:
         all_programs = list(ratings.keys())
         all_time_slots = list(range(6, 24))  # 6 AM to 11 PM
 
+        # Determine global min/max possible fitness for normalization
+        global_min = min([min(v) for v in ratings.values()])
+        global_max = max([max(v) for v in ratings.values()])
+
         # ------------------------ Fitness Function ------------------------
         def fitness_function(schedule):
             total_rating = 0
             for time_slot, program in enumerate(schedule):
-                # Create stronger variety by weighting time slots differently
                 weight = (time_slot + 1) / len(schedule)
                 total_rating += ratings[program][time_slot % len(ratings[program])] * weight
             return total_rating
@@ -89,16 +92,18 @@ if uploaded_file is not None:
                 individual = [random.choice(all_programs) for _ in range(len(all_time_slots))]
                 population.append(individual)
 
-            for generation in range(generations):
-                # Compute fitness for normalization
-                fitness_scores = [fitness_function(ind) for ind in population]
-                min_fit, max_fit = min(fitness_scores), max(fitness_scores)
-                norm_fitness = [(f - min_fit) / (max_fit - min_fit + 1e-9) for f in fitness_scores]
+            best_overall = None
+            best_fitness_value = float("-inf")
 
-                # Sort by fitness
-                sorted_indices = sorted(range(len(population)), key=lambda i: norm_fitness[i], reverse=True)
+            for generation in range(generations):
+                fitness_scores = [fitness_function(ind) for ind in population]
+                sorted_indices = sorted(range(len(population)), key=lambda i: fitness_scores[i], reverse=True)
                 population = [population[i] for i in sorted_indices]
-                norm_fitness = [norm_fitness[i] for i in sorted_indices]
+                fitness_scores.sort(reverse=True)
+
+                if fitness_scores[0] > best_fitness_value:
+                    best_fitness_value = fitness_scores[0]
+                    best_overall = population[0]
 
                 new_population = population[:elitism_size]
 
@@ -118,11 +123,13 @@ if uploaded_file is not None:
 
                 population = new_population[:population_size]
 
-            # Return best schedule
-            best_schedule = population[0]
-            best_fitness = fitness_function(best_schedule)
-            normalized_best = (best_fitness - min_fit) / (max_fit - min_fit + 1e-9)
-            return best_schedule, normalized_best
+            # Normalize based on global range (not per generation)
+            normalized_best = (best_fitness_value - global_min * len(all_time_slots)) / (
+                (global_max - global_min) * len(all_time_slots)
+            )
+            normalized_best = max(0, min(1, normalized_best))  # keep between 0–1
+
+            return best_overall, normalized_best
 
         # ------------------------ Run Algorithm ------------------------
         if st.button("▶️ Run Genetic Algorithm"):
