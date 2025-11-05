@@ -61,11 +61,19 @@ if uploaded_file is not None:
         all_time_slots = list(range(6, 24))  # 6 AM to 11 PM
 
         # ------------------------ Fitness Function ------------------------
+        # Normalize fitness between 0 and 1
+        max_possible_rating = max([max(v) for v in ratings.values()])
+        min_possible_rating = min([min(v) for v in ratings.values()])
+
         def fitness_function(schedule):
             total_rating = 0
             for time_slot, program in enumerate(schedule):
                 total_rating += ratings[program][time_slot % len(ratings[program])]
-            return total_rating
+            # Normalize between 0 and 1
+            normalized = (total_rating - min_possible_rating) / (
+                (max_possible_rating - min_possible_rating) * len(schedule)
+            )
+            return normalized
 
         # ------------------------ GA Operators ------------------------
         def crossover(schedule1, schedule2):
@@ -113,7 +121,7 @@ if uploaded_file is not None:
             st.write("### Running Genetic Algorithm... Please wait...")
             initial_schedule = all_programs.copy()
             best_schedule = genetic_algorithm(initial_schedule)
-            total_rating = fitness_function(best_schedule)
+            total_rating = fitness_function(best_schedule)  # Already normalized 0–1
 
             # ------------------------ Display Results ------------------------
             st.success("✅ Optimal Schedule Found!")
@@ -125,7 +133,7 @@ if uploaded_file is not None:
             }
             schedule_df = pd.DataFrame(schedule_data)
             st.table(schedule_df)
-            st.write(f"### ⭐ Total Ratings: {total_rating:.2f}")
+            st.write(f"### ⭐ Normalized Total Rating: {total_rating:.4f} (0–1 scale)")
 
 else:
     st.info("📥 Please upload a CSV file to begin.")
