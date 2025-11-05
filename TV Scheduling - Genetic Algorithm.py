@@ -26,7 +26,7 @@ if uploaded_file is not None:
     # Decode the uploaded binary file into text
     string_io = io.StringIO(uploaded_file.getvalue().decode("utf-8"))
     reader = csv.reader(string_io)
-    
+
     try:
         header = next(reader)  # Skip header
     except StopIteration:
@@ -34,7 +34,7 @@ if uploaded_file is not None:
         return {}
 
     for row in reader:
-        if not row:  # skip empty rows
+        if not row:  # Skip empty rows
             continue
         program = row[0]
         try:
@@ -43,7 +43,7 @@ if uploaded_file is not None:
             st.error(f"⚠️ Invalid rating values found in program '{program}'. Please check your CSV.")
             return {}
         program_ratings[program] = ratings
-    
+
     return program_ratings
 
     ratings = read_csv_to_dict(uploaded_file)
