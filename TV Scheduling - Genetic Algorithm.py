@@ -1,111 +1,140 @@
 import streamlit as st
-import csv
+import pandas as pd
 import random
-import io
 
-# --- Function to read CSV file and convert to dictionary ---
-def read_csv_to_dict(uploaded_file):
-    program_ratings = {}
-    if uploaded_file is not None:
-        stringio = io.StringIO(uploaded_file.getvalue().decode("utf-8"))
-        reader = csv.reader(stringio)
-        header = next(reader)  # Skip header row
-        for row in reader:
-            if len(row) < 2:
-                continue
-            program = row[0]
-            ratings = [float(x) for x in row[1:]]
-            program_ratings[program] = ratings
-    return program_ratings
+# ------------------------ Streamlit Interface ------------------------
+st.title("📊 TV Program Scheduling using Genetic Algorithm")
+st.write("This app finds the optimal schedule based on program ratings using a Genetic Algorithm.")
 
+# Upload CSV file
+uploaded_file = st.file_uploader("📂 Upload your program ratings CSV file", type=["csv"])
 
-# --- Fitness function ---
-def fitness_function(schedule, program_ratings):
-    total_rating = 0
-    for i, program in enumerate(schedule):
-        if program in program_ratings:
-            total_rating += program_ratings[program][i]
-    return total_rating  # no normalization, more visible difference
+# Sidebar parameters
+st.sidebar.header("⚙️ Genetic Algorithm Parameters")
+CO_R = st.sidebar.slider("Crossover Rate (CO_R)", 0.0, 0.95, 0.8, 0.01)
+MUT_R = st.sidebar.slider("Mutation Rate (MUT_R)", 0.01, 0.1, 0.02, 0.01)
+GEN = st.sidebar.number_input("Generations (GEN)", min_value=50, max_value=1000, value=300, step=50)
+POP = st.sidebar.number_input("Population Size (POP)", min_value=10, max_value=500, value=100, step=10)
+EL_S = st.sidebar.number_input("Elitism Size (EL_S)", min_value=1, max_value=10, value=3, step=1)
 
 
-# --- Selection (tournament selection) ---
-def selection(population, fitnesses):
-    tournament_size = 3
-    selected = random.sample(list(zip(population, fitnesses)), tournament_size)
-    selected.sort(key=lambda x: x[1], reverse=True)
-    return selected[0][0]
-
-
-# --- Crossover ---
-def crossover(parent1, parent2, crossover_rate):
-    if random.random() < crossover_rate:
-        point = random.randint(1, len(parent1) - 2)
-        child1 = parent1[:point] + [gene for gene in parent2 if gene not in parent1[:point]]
-        child2 = parent2[:point] + [gene for gene in parent1 if gene not in parent2[:point]]
-        return child1, child2
-    else:
-        return parent1[:], parent2[:]
-
-
-# --- Mutation ---
-def mutation(schedule, mutation_rate):
-    for i in range(len(schedule)):
-        if random.random() < mutation_rate:
-            j = random.randint(0, len(schedule) - 1)
-            schedule[i], schedule[j] = schedule[j], schedule[i]
-    return schedule
-
-
-# --- Genetic Algorithm ---
-def genetic_algorithm(program_ratings, population_size, generations, crossover_rate, mutation_rate):
-    programs = list(program_ratings.keys())
-    population = [random.sample(programs, len(programs)) for _ in range(population_size)]
-
-    for generation in range(generations):
-        fitnesses = [fitness_function(individual, program_ratings) for individual in population]
-        new_population = []
-
-        # Elitism – keep best individual
-        elite_index = fitnesses.index(max(fitnesses))
-        new_population.append(population[elite_index][:])
-
-        while len(new_population) < population_size:
-            parent1 = selection(population, fitnesses)
-            parent2 = selection(population, fitnesses)
-            child1, child2 = crossover(parent1, parent2, crossover_rate)
-            new_population.append(mutation(child1, mutation_rate))
-            if len(new_population) < population_size:
-                new_population.append(mutation(child2, mutation_rate))
-
-        population = new_population
-
-    best = max(population, key=lambda ind: fitness_function(ind, program_ratings))
-    best_fitness = fitness_function(best, program_ratings)
-    return best, best_fitness
-
-
-# --- Streamlit UI ---
-st.title("📺 TV Scheduling using Genetic Algorithm")
-
-uploaded_file = st.file_uploader("Upload the ratings CSV file", type=["csv"])
-population_size = st.slider("Population Size", 10, 200, 50)
-generations = st.slider("Number of Generations", 10, 500, 100)
-crossover_rate = st.slider("Crossover Rate", 0.0, 1.0, 0.8)
-mutation_rate = st.slider("Mutation Rate", 0.0, 1.0, 0.05)
-
+# ==========================================================
+# 🧩 MAIN CODE EXECUTION
+# ==========================================================
 if uploaded_file is not None:
-    st.success("✅ File uploaded successfully!")
+    # ------------------------ Load CSV ------------------------
+    def read_csv_to_dict(uploaded_file):
+        try:
+            df = pd.read_csv(uploaded_file)
+        except Exception as e:
+            st.error(f"⚠️ Error reading CSV file: {e}")
+            return {}
 
-    program_ratings = read_csv_to_dict(uploaded_file)
-    best_schedule, best_fitness = genetic_algorithm(program_ratings, population_size, generations, crossover_rate, mutation_rate)
+        if df.empty:
+            st.error("⚠️ The uploaded CSV file is empty.")
+            return {}
 
-    st.subheader("🧠 Best Schedule Found:")
-    for i, program in enumerate(best_schedule):
-        st.write(f"Time Slot {i+1}: {program}")
+        if df.shape[1] < 2:
+            st.error("⚠️ The CSV must have at least one program column and one rating column.")
+            return {}
 
-    st.subheader("⭐ Total Rating (Fitness):")
-    st.metric(label="Best Fitness", value=round(best_fitness, 2))
+        program_ratings = {}
+        for _, row in df.iterrows():
+            program = str(row.iloc[0])
+            try:
+                ratings = [float(x) for x in row.iloc[1:].tolist()]
+            except ValueError:
+                st.error(f"⚠️ Invalid numeric value found in program '{program}'.")
+                return {}
+            program_ratings[program] = ratings
 
-    st.caption("Try adjusting mutation and crossover rates to see how the schedule and fitness score change!")
+        # Preview
+        st.write("### 📄 CSV Preview (first 5 rows):")
+        st.dataframe(df.head())
+
+        return program_ratings
+
+    ratings = read_csv_to_dict(uploaded_file)
+
+    if ratings:  # Only proceed if CSV is valid
+        all_programs = list(ratings.keys())
+        all_time_slots = list(range(6, 24))  # 6 AM to 11 PM
+
+        # ------------------------ Fitness Function ------------------------
+        # Normalize fitness between 0 and 1 (fixed scaling)
+        max_possible_rating = max([max(v) for v in ratings.values()])
+        min_possible_rating = min([min(v) for v in ratings.values()])
+
+        def fitness_function(schedule):
+            total_rating = 0
+            for time_slot, program in enumerate(schedule):
+                total_rating += ratings[program][time_slot % len(ratings[program])]
+            # Normalize properly across total possible range
+            normalized = (total_rating - (min_possible_rating * len(schedule))) / (
+                (max_possible_rating - min_possible_rating) * len(schedule)
+            )
+            return normalized
+
+        # ------------------------ GA Operators ------------------------
+        def crossover(schedule1, schedule2):
+            crossover_point = random.randint(1, len(schedule1) - 2)
+            child1 = schedule1[:crossover_point] + schedule2[crossover_point:]
+            child2 = schedule2[:crossover_point] + schedule1[crossover_point:]
+            return child1, child2
+
+        def mutate(schedule):
+            mutation_point = random.randint(0, len(schedule) - 1)
+            new_program = random.choice(all_programs)
+            schedule[mutation_point] = new_program
+            return schedule
+
+        def genetic_algorithm(initial_schedule, generations=GEN, population_size=POP,
+                              crossover_rate=CO_R, mutation_rate=MUT_R, elitism_size=EL_S):
+            population = [initial_schedule.copy() for _ in range(population_size)]
+            for i in range(population_size):
+                random.shuffle(population[i])
+
+            for generation in range(generations):
+                population.sort(key=lambda s: fitness_function(s), reverse=True)
+                new_population = population[:elitism_size]
+
+                while len(new_population) < population_size:
+                    parent1, parent2 = random.choices(population, k=2)
+                    if random.random() < crossover_rate:
+                        child1, child2 = crossover(parent1, parent2)
+                    else:
+                        child1, child2 = parent1.copy(), parent2.copy()
+
+                    if random.random() < mutation_rate:
+                        child1 = mutate(child1)
+                    if random.random() < mutation_rate:
+                        child2 = mutate(child2)
+
+                    new_population.extend([child1, child2])
+
+                population = new_population[:population_size]
+
+            population.sort(key=lambda s: fitness_function(s), reverse=True)
+            return population[0]
+
+        # ------------------------ Run Algorithm ------------------------
+        if st.button("▶️ Run Genetic Algorithm"):
+            st.write("### Running Genetic Algorithm... Please wait...")
+            initial_schedule = all_programs.copy()
+            best_schedule = genetic_algorithm(initial_schedule)
+            total_rating = fitness_function(best_schedule)  # Normalized 0–1 scale
+
+            # ------------------------ Display Results ------------------------
+            st.success("✅ Optimal Schedule Found!")
+            st.write("### 🗓️ Final Optimal Schedule")
+
+            schedule_data = {
+                "Time Slot": [f"{all_time_slots[i % len(all_time_slots)]:02d}:00" for i in range(len(best_schedule))],
+                "Program": best_schedule
+            }
+            schedule_df = pd.DataFrame(schedule_data)
+            st.table(schedule_df)
+            st.write(f"### ⭐ Normalized Total Rating: {total_rating:.4f} (0–1 scale)")
+
 else:
-    st.info("Please upload a CSV file to start.")
+    st.info("📥 Please upload a CSV file to begin.")
