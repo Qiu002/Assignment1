@@ -23,36 +23,59 @@ EL_S = st.sidebar.number_input("Elitism Size (EL_S)", min_value=1, max_value=10,
 # ==========================================================
 if uploaded_file is not None:
     # ------------------------ Load CSV ------------------------
-    def read_csv_to_dict(uploaded_file):
-        try:
-            df = pd.read_csv(uploaded_file)
-        except Exception as e:
-            st.error(f"⚠️ Error reading CSV file: {e}")
-            return {}
+   def read_csv_to_dict(uploaded_file):
+    try:
+        df = pd.read_csv(uploaded_file)
+    except Exception as e:
+        st.error(f"⚠️ Error reading CSV file: {e}")
+        return {}
 
-        if df.empty:
-            st.error("⚠️ The uploaded CSV file is empty.")
-            return {}
+    if df.empty:
+        st.error("⚠️ The uploaded CSV file is empty.")
+        return {}
 
-        if df.shape[1] < 2:
-            st.error("⚠️ The CSV must have at least one program column and one rating column.")
-            return {}
+    if df.shape[1] < 2:
+        st.error("⚠️ The CSV must have at least one program column and one rating column.")
+        return {}
 
-        program_ratings = {}
-        for _, row in df.iterrows():
-            program = str(row.iloc[0])
+    # Detect modified (bolded) cells: assuming modified cells were wrapped in ** **
+    # Example: if CSV cell was **8.5**, we'll render it as bold in Streamlit
+    df_styled = df.copy()
+    bold_mask = df_styled.applymap(lambda x: isinstance(x, str) and x.strip().startswith("**") and x.strip().endswith("**"))
+
+    def highlight_bold(val):
+        if isinstance(val, str) and val.strip().startswith("**") and val.strip().endswith("**"):
+            clean_val = val.strip("*")  # remove **
+            return f"<b>{clean_val}</b>"
+        elif pd.api.types.is_number(val):
+            return f"{val}"
+        else:
+            return val
+
+    styled_df = df_styled.applymap(highlight_bold)
+
+    # Display full CSV (not just first 5 rows)
+    st.write("### 📄 CSV Preview (Full Data, Bold = Modified Cells):")
+    st.write(styled_df.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+    # Convert to numeric for processing
+    program_ratings = {}
+    for _, row in df.iterrows():
+        program = str(row.iloc[0])
+        ratings = []
+        for x in row.iloc[1:].tolist():
+            # Clean bold markers if present
+            if isinstance(x, str):
+                x = x.strip("*")
             try:
-                ratings = [float(x) for x in row.iloc[1:].tolist()]
+                ratings.append(float(x))
             except ValueError:
                 st.error(f"⚠️ Invalid numeric value found in program '{program}'.")
                 return {}
-            program_ratings[program] = ratings
+        program_ratings[program] = ratings
 
-        # Preview
-        st.write("### 📄 CSV Preview (first 5 rows):")
-        st.dataframe(df.head())
+    return program_ratings
 
-        return program_ratings
 
     ratings = read_csv_to_dict(uploaded_file)
 
