@@ -1,5 +1,6 @@
 import streamlit as st
 import csv
+import io
 import random
 
 # ------------------------ Streamlit Interface ------------------------
@@ -19,15 +20,31 @@ EL_S = st.sidebar.number_input("Elitism Size (EL_S)", min_value=1, max_value=10,
 
 if uploaded_file is not None:
     # ------------------------ Load CSV ------------------------
-    def read_csv_to_dict(file):
-        program_ratings = {}
-        reader = csv.reader(file)
-        header = next(reader)
-        for row in reader:
-            program = row[0]
+    def read_csv_to_dict(uploaded_file):
+    program_ratings = {}
+
+    # Decode the uploaded binary file into text
+    string_io = io.StringIO(uploaded_file.getvalue().decode("utf-8"))
+    reader = csv.reader(string_io)
+    
+    try:
+        header = next(reader)  # Skip header
+    except StopIteration:
+        st.error("⚠️ The uploaded CSV file appears to be empty.")
+        return {}
+
+    for row in reader:
+        if not row:  # skip empty rows
+            continue
+        program = row[0]
+        try:
             ratings = [float(x) for x in row[1:]]
-            program_ratings[program] = ratings
-        return program_ratings
+        except ValueError:
+            st.error(f"⚠️ Invalid rating values found in program '{program}'. Please check your CSV.")
+            return {}
+        program_ratings[program] = ratings
+    
+    return program_ratings
 
     ratings = read_csv_to_dict(uploaded_file)
 
