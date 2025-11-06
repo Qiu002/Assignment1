@@ -7,7 +7,7 @@ st.title("📊 TV Program Scheduling using Genetic Algorithm")
 st.write("This app finds the optimal schedule based on program ratings using a Genetic Algorithm.")
 
 # Upload CSV file
-uploaded_file = st.file_uploader("📂 Upload your program ratings CSV file", type=["csv"])
+uploaded_file = st.file_uploader(" Upload your program ratings CSV file", type=["csv"])
 
 # Sidebar parameters
 st.sidebar.header("⚙️ Genetic Algorithm Parameters")
@@ -34,11 +34,11 @@ if uploaded_file is not None:
             return {}
 
         if df.empty:
-            st.error("⚠️ The uploaded CSV file is empty.")
+            st.error(" The uploaded CSV file is empty.")
             return {}
 
         if df.shape[1] < 2:
-            st.error("⚠️ The CSV must have at least one program column and one rating column.")
+            st.error(" The CSV must have at least one program column and one rating column.")
             return {}
 
         # ============================
@@ -170,13 +170,13 @@ if uploaded_file is not None:
 
             return best_overall, normalized_best
 
-        if st.button("▶️ Run Genetic Algorithm"):
+        if st.button(" Run Genetic Algorithm"):
             st.write("### Running Genetic Algorithm... Please wait...")
             initial_schedule = all_programs.copy()
             best_schedule, total_rating = genetic_algorithm(initial_schedule)
 
-            st.success("✅ Optimal Schedule Found!")
-            st.write("### 🗓️ Final Optimal Schedule")
+            st.success(" Optimal Schedule Found!")
+            st.write("###  Final Optimal Schedule")
 
             schedule_data = {
                 "Time Slot": [f"{all_time_slots[i % len(all_time_slots)]:02d}:00" for i in range(len(best_schedule))],
@@ -187,4 +187,4 @@ if uploaded_file is not None:
             st.write(f"### Total Rating: {total_rating:.4f} (0–1 scale)")
 
 else:
-    st.info("📥 Please upload a CSV file to begin.")
+    st.info(" Please upload a CSV file to begin.")
