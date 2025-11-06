@@ -184,7 +184,7 @@ if uploaded_file is not None:
             }
             schedule_df = pd.DataFrame(schedule_data)
             st.table(schedule_df)
-            st.write(f"### ⭐ Normalized Total Rating: {total_rating:.4f} (0–1 scale)")
+            st.write(f"### Total Rating: {total_rating:.4f} (0–1 scale)")
 
 else:
     st.info("📥 Please upload a CSV file to begin.")
