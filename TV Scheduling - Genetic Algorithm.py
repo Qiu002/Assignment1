@@ -3,7 +3,7 @@ import pandas as pd
 import random
 
 # ------------------------ Streamlit Interface ------------------------
-st.title("📊 TV Program Scheduling using Genetic Algorithm")
+st.title(" TV Program Scheduling using Genetic Algorithm")
 st.write("This app finds the optimal schedule based on program ratings using a Genetic Algorithm.")
 
 # Upload CSV file
